@@ -1,0 +1,10 @@
+.env
+__pycache__/
+lavalink/
+test.py
+*.pyc
+*.jar
+signature/
+database/
+database/data.json
+venv/
