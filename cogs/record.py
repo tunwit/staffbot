@@ -9,10 +9,12 @@ import numpy as np
 import time
 import tempfile
 import gc 
-
+from setup import client ,resource
+import io
+from datetime import datetime
 
 class record(commands.Cog):
-    def __init__(self, bot ):
+    def __init__(self, bot:commands.Bot):
         self.bot = bot
         self.sample_rate = 48000 
         self.channel = 2
@@ -22,6 +24,9 @@ class record(commands.Cog):
         self.temp = {}
         self.task = None
         self.run = True
+        self.text_channel = 979689935743377471
+        self.start_session = None
+        self.result = {}
 
     def callback(self,user:discord.Member, data: voice_recv.VoiceData):
         if user:
@@ -45,7 +50,13 @@ class record(commands.Cog):
                 frame_rate=self.sample_rate,  
                 channels=self.channel  # Stereo
                 )
-            audio_segment.export(f'test/{user}-{data[2]}.mp3', format='mp3',bitrate="64k")
+            with io.BytesIO() as f:
+                audio_segment.export(f, format='mp3',bitrate="64k")
+                _id = self.start_session.strftime("%d%m%Y%H%M%S")
+                filename = f"{user}-{_id}.mp3"
+                client.upload_fileobj(f, "csbot", filename)
+                self.result[data[2]] = f"https://pub-cbd1e74ceb804677bfc1ed1e43a2600f.r2.dev/{filename}"
+        
         await self.merge()
         
     async def merge(self):
@@ -66,8 +77,13 @@ class record(commands.Cog):
                 channels=self.channel  # Stereo
                 )
             merged = merged.overlay(audio_segment)
-        merged.export(f'test/all.mp3', format='mp3',bitrate="64k")
-        return
+        
+        with io.BytesIO() as f:
+                merged.export(f, format='mp3',bitrate="64k")
+                _id = self.start_session.strftime("%d%m%Y%H%M%S")
+                filename = f"all-{_id}.mp3"
+                client.upload_fileobj(f, "csbot", filename)
+                self.result['all'] = f"https://pub-cbd1e74ceb804677bfc1ed1e43a2600f.r2.dev/{filename}"
     
     async def start(self):
         while self.run:
@@ -89,8 +105,14 @@ class record(commands.Cog):
     async def record(self,interaction:discord.Interaction):
         vc = await interaction.user.voice.channel.connect(cls=voice_recv.VoiceRecvClient)
         vc.listen(voice_recv.BasicSink(self.callback))
+        self.start_session =datetime.now()
 
         self.task = self.bot.loop.create_task(self.start())
+
+        guild = interaction.guild
+        channel = guild.get_channel(self.channel)
+        # channel.fetch_message()
+        
         await interaction.response.send_message("Record started",ephemeral=True)
         
     @app_commands.command(name="stop",description="stop record")
@@ -105,6 +127,8 @@ class record(commands.Cog):
         for user,data in self.temp.items():
             data[0].close()
             print(f"close temp file for {data[2]}")
+        print("done")
+  
         gc.collect()
 
 async def setup(bot):    

@@ -3,3 +3,4 @@ discord-ext-voice-recv == 0.4.2a145
 pydub == 0.25.1
 numpy == 2.0.1
 python-dotenv == 1.0.1
+boto3 == 1.34.149
