@@ -27,6 +27,7 @@ class record(commands.Cog):
         self.text_channel = 979689935743377471
         self.start_session = None
         self.result = {}
+        self.join_conference = []
 
     def callback(self,user:discord.Member, data: voice_recv.VoiceData):
         if user:
@@ -36,6 +37,7 @@ class record(commands.Cog):
 
                 self.audios[user.id] = [tempfile.NamedTemporaryFile(),time.time(),None]
                 self.audios[user.id][2] = user.display_name
+
             self.temp[user.id][0].write(data.pcm)
             self.audios[user.id][0].write(data.pcm)
             self.audios[user.id][1] = time.time()
@@ -61,22 +63,23 @@ class record(commands.Cog):
         
     async def merge(self):
         self.temp[list(self.temp)[0]][0].seek(0)
-        merged = AudioSegment(
-                data=bytes(self.temp[list(self.temp)[0]][0].read()),
-                sample_width=2,  # 16-bit audio
-                frame_rate=self.sample_rate,  
-                channels=self.channel  # Stereo
-                )
+        merged = None
         for user,data in self.temp.items():
             print(f"merging {data[2]}")
             data[0].seek(0)
-            audio_segment = AudioSegment(
+            silence = AudioSegment.silent(((data[1] - self.start_session.timestamp())*1000)+1,self.sample_rate)
+            print(data[1] - self.start_session.timestamp())
+            print(f"silence duration {silence.duration_seconds}")
+            audio_segment = silence+AudioSegment(
                 data=bytes(data[0].read()),
                 sample_width=2,  # 16-bit audio
                 frame_rate=self.sample_rate,  
                 channels=self.channel  # Stereo
                 )
-            merged = merged.overlay(audio_segment)
+            if merged:
+                merged = merged.overlay(audio_segment)
+            else:
+                merged = audio_segment
         
         with io.BytesIO() as f:
                 merged.export(f, format='mp3',bitrate="64k")
@@ -108,12 +111,9 @@ class record(commands.Cog):
         self.start_session =datetime.now()
 
         self.task = self.bot.loop.create_task(self.start())
-
-        guild = interaction.guild
-        channel = guild.get_channel(self.channel)
-        # channel.fetch_message()
-        
         await interaction.response.send_message("Record started",ephemeral=True)
+        embed = discord.Embed(title="🔴 Tracking Quorum",description="This tracking is recording your voice 🎙️" ,color=0x6a208a)
+        await interaction.followup.send(embed=embed)
         
     @app_commands.command(name="stop",description="stop record")
     async def stop(self,interaction:discord.Interaction):
@@ -128,8 +128,31 @@ class record(commands.Cog):
             data[0].close()
             print(f"close temp file for {data[2]}")
         print("done")
-  
+
+        messages = [f"Here is Conference record of **{self.start_session.strftime('%d/%m/%Y')}**"]
+        for name,result in self.result.items():
+            messages.append(f"\n`**{name}** : {result}`")
+        messages.append("--------------------------")
+        self.result.clear()
+        message = ''.join(messages)
+        await interaction.followup.send(message)
         gc.collect()
+
+    @commands.Cog.listener()
+    async def on_voice_state_update(self, member:discord.Member, before, after): 
+        data = data["trackvc"]["channel"]
+        if not data:
+            return
+        if member == self.bot.user:
+           return
+        if str(member.guild.id) not in list(data):
+            return
+        if before.channel == None and after.channel != None: #None -> join
+            self.join_conference.append(member)
+        elif before.channel != None and after.channel != None and before.channel != after.channel: #Join -> Join (move to)
+            self.join_conference.append(member)
+        else:
+            return
 
 async def setup(bot):    
   await bot.add_cog(record(bot))  
