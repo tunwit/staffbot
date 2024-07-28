@@ -109,11 +109,13 @@ class record(commands.Cog):
         vc = await interaction.user.voice.channel.connect(cls=voice_recv.VoiceRecvClient)
         vc.listen(voice_recv.BasicSink(self.callback))
         self.start_session =datetime.now()
-
         self.task = self.bot.loop.create_task(self.start())
+        for member in interaction.user.voice.channel.members:
+            self.join_conference.append(member)
         await interaction.response.send_message("Record started",ephemeral=True)
         embed = discord.Embed(title="🔴 Tracking Quorum",description="This tracking is recording your voice 🎙️" ,color=0x6a208a)
         await interaction.followup.send(embed=embed)
+        await interaction.followup.send("-----------------------------")
         
     @app_commands.command(name="stop",description="stop record")
     async def stop(self,interaction:discord.Interaction):
@@ -129,24 +131,36 @@ class record(commands.Cog):
             print(f"close temp file for {data[2]}")
         print("done")
 
+        channel = interaction.guild.get_channel(self.text_channel)
+        if not channel:
+            await interaction.followup.send("Channel not found")
+            return
+        
         messages = [f"Here is Conference record of **{self.start_session.strftime('%d/%m/%Y')}**"]
         for name,result in self.result.items():
-            messages.append(f"\n`**{name}** : {result}`")
-        messages.append("--------------------------")
+            messages.append(f"\n**{name}** : {result}")
         self.result.clear()
         message = ''.join(messages)
-        await interaction.followup.send(message)
+        await channel.send(message)
+        notpaticipate = []
+        counter = 1
+        for member in interaction.guild.members,1:
+            if member not in self.join_conference:
+                f" {counter}. {member.display_name} " 
+                counter += 1
+
+        print(enumerate(self.join_conference,1))
+        print(notpaticipate)
+        p_m = '\n'.join(notpaticipate)
+        embed = discord.Embed(title="Conference result",description="" ,color=0x6a208a)
+        embed.add_field(name="Not Paticipate",value=f"`{p_m}`")
+        await channel.send(embed=embed)
         gc.collect()
 
     @commands.Cog.listener()
     async def on_voice_state_update(self, member:discord.Member, before, after): 
-        data = data["trackvc"]["channel"]
-        if not data:
-            return
         if member == self.bot.user:
            return
-        if str(member.guild.id) not in list(data):
-            return
         if before.channel == None and after.channel != None: #None -> join
             self.join_conference.append(member)
         elif before.channel != None and after.channel != None and before.channel != after.channel: #Join -> Join (move to)
