@@ -16,5 +16,4 @@ client = boto3.client('s3',
   aws_secret_access_key = os.getenv("AWS_SECRET_ACCESS_KEY")
 )
 
-bucket = resource.Bucket('csbot')
 client.upload_file("main.py", "csbot", "testfile")
