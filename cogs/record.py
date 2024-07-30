@@ -58,12 +58,12 @@ class record(commands.Cog):
                 performanced = audio
                 
             with io.BytesIO() as f:
-                performanced.export(f"test/{user}.mp3", format='mp3',bitrate="64k")
+                performanced.export(f, format='mp3',bitrate="64k")
                 filename = f"{user}-{_id}.mp3"
-                # client.upload_fileobj(f, "csbot", filename)
+                client.upload_fileobj(f, "csbot", filename)
                 self.result[data[2]] = f"https://pub-cbd1e74ceb804677bfc1ed1e43a2600f.r2.dev/{filename}"
             if merge:
-                merge.overlay(audio)
+                merge = merge.overlay(audio)
                 print(f"overlay {data[2]}")
 
             else:
@@ -71,9 +71,9 @@ class record(commands.Cog):
                 print(f"base {data[2]}")
 
         with io.BytesIO() as f:
-            merge.export(f"test/all.mp3", format='mp3',bitrate="64k")
+            merge.export(f, format='mp3',bitrate="64k")
             filename = f"all-{_id}.mp3"
-            # client.upload_fileobj(f, "csbot", filename)
+            client.upload_fileobj(f, "csbot", filename)
             self.result['all'] = f"https://pub-cbd1e74ceb804677bfc1ed1e43a2600f.r2.dev/{filename}"
 
                 
@@ -110,8 +110,7 @@ class record(commands.Cog):
         self.run = False
         self.task.cancel()
         await self.save()
-        # self.audios.clear()
-        # self.temp.clear()
+        self.temp.clear()
         for user,data in self.temp.items():
             data[0].close()
             print(f"close temp file for {data[2]}")
