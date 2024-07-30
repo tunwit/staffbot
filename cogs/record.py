@@ -94,7 +94,7 @@ class record(commands.Cog):
                 current = time.time()
                 last = data[1]
                 diff = current - last
-                if (diff > 0.2 and diff < 10): # if not talk more than 10 sec will not record for storage safing
+                if (diff > 0.2 ): # if not talk more than 10 sec will not record for storage safing
                     num_silence_frames = int(self.sample_rate   * 0.2)
                     silence_data = (b'\x00\x00' * self.channel)* num_silence_frames
                     self.audios[user][0].write(silence_data)
