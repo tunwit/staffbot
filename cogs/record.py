@@ -88,7 +88,6 @@ class record(commands.Cog):
                     silence_data = (b'\x00\x00' * self.channel)* num_silence_frames
                     self.temp[user][0].write(silence_data)
                     print(f"insert silences for {data[2]}")
-
             await asyncio.sleep(0.2)
         
     @app_commands.command(name="record",description="record")
@@ -110,10 +109,10 @@ class record(commands.Cog):
         self.run = False
         self.task.cancel()
         await self.save()
-        self.temp.clear()
         for user,data in self.temp.items():
             data[0].close()
             print(f"close temp file for {data[2]}")
+        self.temp.clear()
         print("done")
 
         channel = interaction.guild.get_channel(self.text_channel)
