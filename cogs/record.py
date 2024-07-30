@@ -23,7 +23,7 @@ class record(commands.Cog):
         self.temp = {}
         self.task = None
         self.run = True
-        self.text_channel = 979689935743377471
+        self.text_channel = 1267841264577941674
         self.start_session = None
         self.result = {}
         self.join_conference = []
@@ -39,13 +39,32 @@ class record(commands.Cog):
             self.temp[user.id][0].write(data.pcm)
             self.temp[user.id][2] = time.time()
 
-    def process(self)
-    async def save(self,interaction:discord.interactions):
+    def process(self,_id,user,data):
+        print(f"saving {user}")
+        data[0].seek(0)
+        audio = AudioSegment(
+            data=bytes(data[0].read()),
+            sample_width=2,  # 16-bit audio
+            frame_rate=self.sample_rate,  
+            channels=self.channel  # Stereo
+            )
+        chunks = split_on_silence(audio,keep_silence=2500,min_silence_len=1)
+        performanced = AudioSegment.empty()
+        if chunks:
+            for chunk in chunks:
+                performanced += chunk
+        else:
+            performanced = audio
+        with io.BytesIO() as f:
+            performanced.export(f, format='mp3',bitrate="64k")
+            filename = f"{user}-{_id}.mp3"
+            client.upload_fileobj(f, "csbot", filename)
+            self.result[user] = [f"https://pub-cbd1e74ceb804677bfc1ed1e43a2600f.r2.dev/{filename}",data[3]]
+
+    def process_all(self,_id):
         merge = None
-        _id = self.start_session.strftime("%d%m%Y%H%M%S")
+        print(f"saving all")
         for user,data in self.temp.items():
-            threading.Thread(target, args)
-            print(f"saving {user}")
             data[0].seek(0)
             audio = AudioSegment(
                 data=bytes(data[0].read()),
@@ -53,38 +72,32 @@ class record(commands.Cog):
                 frame_rate=self.sample_rate,  
                 channels=self.channel  # Stereo
                 )
-            chunks = split_on_silence(audio,keep_silence=2500,min_silence_len=1)
-            print(chunks)
-            performanced = AudioSegment.empty()
-            if chunks:
-                for chunk in chunks:
-                    performanced += chunk
-            else:
-                performanced = audio
-            with io.BytesIO() as f:
-                performanced.export(f, format='mp3',bitrate="64k")
-                filename = f"{user}-{_id}.mp3"
-                client.upload_fileobj(f, "csbot", filename)
-                self.result[user] = [f"https://pub-cbd1e74ceb804677bfc1ed1e43a2600f.r2.dev/{filename}",data[3]]
-
-            print(f"before {len(audio)}")
             processed = AudioSegment.silent(duration=((data[1]-self.start_session.timestamp()-1)*1000),frame_rate=self.sample_rate)+audio # -1 for compensate delay
-            print(f"after {len(audio)}")
             if merge:
-                print(f"silence {data[1]-self.start_session.timestamp()}")
                 merge = merge.overlay(processed)
-                print(f"overlay {data[3]}")
-
             else:
-                print(f"silence {data[1]-self.start_session.timestamp()}")
                 merge = processed
-                print(f"base {data[3]}")
 
         with io.BytesIO() as f:
             merge.export(f, format='mp3',bitrate="64k")
             filename = f"all-{_id}.mp3"
             client.upload_fileobj(f, "csbot", filename)
             self.result['000'] = [f"https://pub-cbd1e74ceb804677bfc1ed1e43a2600f.r2.dev/{filename}","all"]
+
+
+    async def save(self,interaction:discord.interactions):
+        
+        _id = self.start_session.strftime("%d%m%Y%H%M%S")
+        workers = []
+        for user,data in self.temp.items():
+            thread = threading.Thread(target=self.process, args=(_id,user,data,))
+            thread.start()
+            workers.append(thread)
+        thread = threading.Thread(target=self.process_all, args=(_id,))
+        thread.start()
+        workers.append(thread)
+        for worker in workers:
+            worker.join()
 
         for user,data in self.temp.items():
             data[0].close()
@@ -97,7 +110,7 @@ class record(commands.Cog):
             await interaction.followup.send("Channel not found")
             return
         
-        messages = [f"Here is Conference record of **{self.start_session.strftime('%d/%m/%Y')}**"]
+        messages = [f"Here is Conference record of **{self.start_session.strftime('%d/%m/%Y')} {self.start_session.strftime('%H:%M')}-{datetime.now().strftime('%H:%M')}**"]
         for name,result in self.result.items():
             messages.append(f"\n**{result[1]}** : {result[0]}")
         self.result.clear()
@@ -110,9 +123,10 @@ class record(commands.Cog):
                 notpaticipate.append(f" {counter}. {member.display_name} ")
                 counter += 1
         p_m = '\n'.join(notpaticipate)
-        embed = discord.Embed(title="Conference result",description="" ,color=0x6a208a)
+        embed = discord.Embed(title="Conference result",description=f'Thankyou for participate this conference during\n{self.start_session.strftime("%H:%M")}-{datetime.now().strftime("%H:%M")}' ,color=0x6a208a)
         embed.add_field(name="Not Paticipate",value=f"`{p_m}`")
         await channel.send(embed=embed)
+        await channel.send("------------------------------------")
         gc.collect()
 
                 
@@ -143,9 +157,8 @@ class record(commands.Cog):
         
     @app_commands.command(name="stop",description="stop record")
     async def stop(self,interaction:discord.Interaction):
-        await interaction.response.defer()
         await interaction.guild.voice_client.disconnect()
-        await interaction.followup.send("Record Stoped",ephemeral=True)
+        await interaction.response.send_message("Record Stopped",ephemeral=True)
         self.run = False
         self.task.cancel()
         self.task = None
