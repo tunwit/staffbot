@@ -26,8 +26,11 @@ class record(commands.Cog):
         self.start_session = None
         self.result = {}
         self.join_conference = []
+        self.pause = False
 
     def callback(self,user:discord.Member, data: voice_recv.VoiceData):
+        if self.pause:
+            return
         if not self.start_session:
             self.start_session =datetime.now()
         if user:
@@ -55,12 +58,14 @@ class record(commands.Cog):
                 performanced += chunk
         else:
             performanced = audio
+        print(f"done spliting {data[3]}")
         with io.BytesIO() as f:
             performanced.export(f, format='mp3',bitrate="64k")
             filename = f"{user}-{_id}.mp3"
             print(f"uploading {data[3]}")
             client.upload_fileobj(f, "csbot", filename)
             self.result[user] = [f"https://pub-cbd1e74ceb804677bfc1ed1e43a2600f.r2.dev/{filename}",data[3]]
+            print(f"done uploading {data[3]}")
 
     def process_all(self,_id):
         merge = None
@@ -83,7 +88,7 @@ class record(commands.Cog):
         with io.BytesIO() as f:
             merge.export(f, format='mp3',bitrate="64k")
             filename = f"all-{_id}.mp3"
-            print(f"uploading {data[3]}")
+            print(f"uploading all")
             client.upload_fileobj(f, "csbot", filename)
             self.result['000'] = [f"https://pub-cbd1e74ceb804677bfc1ed1e43a2600f.r2.dev/{filename}","all"]
 
@@ -134,6 +139,9 @@ class record(commands.Cog):
                 
     async def start(self):
         while self.run:
+            await asyncio.sleep(0.2)
+            if self.pause:
+                continue
             for user,data in self.temp.items():
                 current = time.time()
                 last = data[2]
@@ -143,7 +151,6 @@ class record(commands.Cog):
                     silence_data = (b'\x00\x00' * self.channel)* num_silence_frames
                     self.temp[user][0].write(silence_data)
                     print(f"insert silences for {data[3]} {time.time() - self.start_session.timestamp()}")
-            await asyncio.sleep(0.2)
         
     @app_commands.command(name="record",description="record")
     async def record(self,interaction:discord.Interaction):
@@ -174,7 +181,14 @@ class record(commands.Cog):
         self.join_conference.append(member)
         await interaction.response.send_message(f"Success fully add {member.name} to absend list",ephemeral=True)
 
-
+    @app_commands.command(name="toggle_pause",description="toggle pause record")
+    async def toggle_pause(self,interaction:discord.Interaction):
+        if self.pause:
+            self.pause = False
+        else:
+            self.pause = True
+        await interaction.response.send_message(f"Conference are now {'recording' if not self.pause else 'pause'}")
+    
     @commands.Cog.listener()
     async def on_voice_state_update(self, member:discord.Member, before, after): 
         if member == self.bot.user:
