@@ -19,7 +19,6 @@ class record(commands.Cog):
         self.bot = bot
         self.sample_rate = 48000 
         self.channel = 2
-        self.wav = None
         self.temp = {}
         self.task = None
         self.run = True
@@ -48,6 +47,7 @@ class record(commands.Cog):
             frame_rate=self.sample_rate,  
             channels=self.channel  # Stereo
             )
+        print(f"spliting {data[3]}")
         chunks = split_on_silence(audio,keep_silence=2500,min_silence_len=1)
         performanced = AudioSegment.empty()
         if chunks:
@@ -58,6 +58,7 @@ class record(commands.Cog):
         with io.BytesIO() as f:
             performanced.export(f, format='mp3',bitrate="64k")
             filename = f"{user}-{_id}.mp3"
+            print(f"uploading {data[3]}")
             client.upload_fileobj(f, "csbot", filename)
             self.result[user] = [f"https://pub-cbd1e74ceb804677bfc1ed1e43a2600f.r2.dev/{filename}",data[3]]
 
@@ -65,6 +66,7 @@ class record(commands.Cog):
         merge = None
         print(f"saving all")
         for user,data in self.temp.items():
+            print(f"merging all {data[3]}")
             data[0].seek(0)
             audio = AudioSegment(
                 data=bytes(data[0].read()),
@@ -81,12 +83,12 @@ class record(commands.Cog):
         with io.BytesIO() as f:
             merge.export(f, format='mp3',bitrate="64k")
             filename = f"all-{_id}.mp3"
+            print(f"uploading {data[3]}")
             client.upload_fileobj(f, "csbot", filename)
             self.result['000'] = [f"https://pub-cbd1e74ceb804677bfc1ed1e43a2600f.r2.dev/{filename}","all"]
 
 
-    async def save(self,interaction:discord.interactions):
-        
+    async def save(self,interaction:discord.Interaction):
         _id = self.start_session.strftime("%d%m%Y%H%M%S")
         workers = []
         for user,data in self.temp.items():
@@ -107,8 +109,8 @@ class record(commands.Cog):
 
         channel = interaction.guild.get_channel(self.text_channel)
         if not channel:
-            await interaction.followup.send("Channel not found")
-            return
+            await interaction.followup.send("Channel not found sending in defualt channel")
+            channel = interaction.channel
         
         messages = [f"Here is Conference record of **{self.start_session.strftime('%d/%m/%Y')} {self.start_session.strftime('%H:%M')}-{datetime.now().strftime('%H:%M')}**"]
         for name,result in self.result.items():
@@ -163,6 +165,15 @@ class record(commands.Cog):
         self.task.cancel()
         self.task = None
         self.bot.loop.create_task(self.save(interaction))
+
+    @app_commands.command(name="absent",description="for known absent result in not showing in not paticipate")
+    async def absent(self,interaction:discord.Interaction,member:discord.Member):
+        if not self.run:
+            await interaction.response.send_message("This command only avaliable during Conference session",ephemeral=True)
+            return
+        self.join_conference.append(member)
+        await interaction.response.send_message(f"Success fully add {member.name} to absend list",ephemeral=True)
+
 
     @commands.Cog.listener()
     async def on_voice_state_update(self, member:discord.Member, before, after): 
