@@ -15,6 +15,7 @@ from datetime import datetime
 import threading
 import os 
 import subprocess
+from ffmpeg.asyncio import FFmpeg
 
 class record(commands.Cog):
     def __init__(self, bot:commands.Bot):
@@ -99,9 +100,44 @@ class record(commands.Cog):
         _id = self.start_session.strftime("%d%m%Y%H%M%S")
         workers = []
         for user,data in self.temp.items():
-            # os.system(f'ffmpeg -f s16le -ar 48000 -ac 2 -i temp/{user} temp/{user}-{time.time()}.mp3')
-            subprocess.run(["ffmpeg","-f","s16le","-ar","48000","-ac","2","-i",f"temp/{user}",f"temp/{user}-{time.time()}.mp3"])
+            ffmpeg = (
+                FFmpeg()
+                .option("y")
+                .input(f"temp/{user}",
+                    f="s16le",
+                    ar="48000",
+                    ac = "2")
+                .output(f"temp/{user}-{time.time()}.mp3",
+                        {
+                        "filter_complex":"silenceremove=stop_threshold=-50dB:stop_duration=2:stop_periods=-1"
+                        })
+                    )
+            
+            compensate = data[1] - self.start_session 
+            
+            ffmpeg_all_preparation = (
+                FFmpeg()
+                .option("y")
+                .input(f"temp/{user}",
+                    f="s16le",
+                    ar="48000",
+                    ac = "2")
+                .output(f"temp/{user}",
+                        {
+                        "filter_complex":f"adelay={compensate}|{compensate}"
+                        })
+                    )
+            try:
+                await ffmpeg.execute()
+                await ffmpeg_all_preparation.execute()
+            except:
+                print(f"There is an error while processing {data[3]}")
+                continue
             print(f"done {user}")
+
+        for user,data in self.temp.items():
+            pass
+
             # thread = threading.Thread(target=self.process, args=(_id,user,data,))
             # thread.start()
             # workers.append(thread)
