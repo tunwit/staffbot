@@ -9,3 +9,4 @@ database/
 database/data.json
 venv/
 test/
+temp/

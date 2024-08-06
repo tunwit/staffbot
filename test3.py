@@ -3,15 +3,17 @@ from pydub.silence import split_on_silence
 
 DURATION = 48000*5
 
-audio:AudioSegment = AudioSegment.from_mp3("407176297991634954-30072024194315.mp3")
+audio:AudioSegment = AudioSegment.from_raw(file="temp/483104273761304577",
+            sample_width=2,  # 16-bit audio
+            frame_rate=48000,  
+            channels=2  # Stereo
+            )
 
-chunks = split_on_silence(audio,min_silence_len=1,keep_silence=2500)
+o:AudioSegment = AudioSegment.from_raw(file="temp/847770564525162546",
+            sample_width=2,  # 16-bit audio
+            frame_rate=48000,  
+            channels=2  # Stereo
+            )
 
-non_silent_audio = AudioSegment.empty()
-if chunks:
-    for chunk in chunks:
-        non_silent_audio += chunk
-else:
-    non_silent_audio = audio
-print("saving")
-non_silent_audio.export("new.mp3")
+overlay = audio.overlay(o)
+overlay.export("new.mp3")

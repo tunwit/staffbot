@@ -13,6 +13,8 @@ from setup import client ,resource
 import io
 from datetime import datetime
 import threading
+import os 
+import subprocess
 
 class record(commands.Cog):
     def __init__(self, bot:commands.Bot):
@@ -35,7 +37,7 @@ class record(commands.Cog):
             self.start_session =datetime.now()
         if user:
             if user.id not in self.temp:
-                self.temp[user.id] = [tempfile.NamedTemporaryFile(),time.time(),time.time(),None] #tempfile,firsttimetalk,recenttalk,name
+                self.temp[user.id] = [open(f"temp/{user.id}","wb"),time.time(),time.time(),None] #tempfile,firsttimetalk,recenttalk,name
                 self.temp[user.id][3] = user.display_name
 
             self.temp[user.id][0].write(data.pcm)
@@ -97,9 +99,13 @@ class record(commands.Cog):
         _id = self.start_session.strftime("%d%m%Y%H%M%S")
         workers = []
         for user,data in self.temp.items():
-            thread = threading.Thread(target=self.process, args=(_id,user,data,))
-            thread.start()
-            workers.append(thread)
+            # os.system(f'ffmpeg -f s16le -ar 48000 -ac 2 -i temp/{user} temp/{user}-{time.time()}.mp3')
+            subprocess.run(["ffmpeg","-f","s16le","-ar","48000","-ac","2","-i",f"temp/{user}",f"temp/{user}-{time.time()}.mp3"])
+            print(f"done {user}")
+            # thread = threading.Thread(target=self.process, args=(_id,user,data,))
+            # thread.start()
+            # workers.append(thread)
+        return
         thread = threading.Thread(target=self.process_all, args=(_id,))
         thread.start()
         workers.append(thread)
