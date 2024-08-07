@@ -15,7 +15,7 @@ from datetime import datetime
 import threading
 import os 
 import subprocess
-from ffmpeg.asyncio import FFmpeg
+from ffmpeg import FFmpeg
 
 class record(commands.Cog):
     def __init__(self, bot:commands.Bot):
@@ -31,6 +31,18 @@ class record(commands.Cog):
         self.join_conference = []
         self.pause = False
 
+    def clearnup(self):
+        gc.collect()
+        try:
+            files = os.listdir('temp')
+            for file in files:
+                file_path = os.path.join('temp', file)
+                if os.path.isfile(file_path):
+                    os.remove(file_path)
+            print("All files deleted successfully.")
+        except OSError:
+            print("Error occurred while deleting files.")
+
     def callback(self,user:discord.Member, data: voice_recv.VoiceData):
         if self.pause:
             return
@@ -38,9 +50,9 @@ class record(commands.Cog):
             self.start_session =datetime.now()
         if user:
             if user.id not in self.temp:
-                self.temp[user.id] = [open(f"temp/{user.id}","wb"),time.time(),time.time(),None] #tempfile,firsttimetalk,recenttalk,name
+                self.temp[user.id] = [open(f"temp/{user.id}.pcm","wb"),time.time(),time.time(),None] #tempfile,firsttimetalk,recenttalk,name
                 self.temp[user.id][3] = user.display_name
-
+            print(f"reciveing {user.name} at {time.time() - self.start_session.timestamp()}")
             self.temp[user.id][0].write(data.pcm)
             self.temp[user.id][2] = time.time()
 
@@ -98,59 +110,77 @@ class record(commands.Cog):
 
     async def save(self,interaction:discord.Interaction):
         _id = self.start_session.strftime("%d%m%Y%H%M%S")
-        workers = []
         for user,data in self.temp.items():
             ffmpeg = (
                 FFmpeg()
                 .option("y")
-                .input(f"temp/{user}",
+                .input(f"temp/{user}.pcm",
                     f="s16le",
                     ar="48000",
                     ac = "2")
-                .output(f"temp/{user}-{time.time()}.mp3",
+                .output(f"temp/{user}-{_id}.mp3",
                         {
                         "filter_complex":"silenceremove=stop_threshold=-50dB:stop_duration=2:stop_periods=-1"
                         })
                     )
             
-            compensate = data[1] - self.start_session 
-            
+            compensate = (data[1] - self.start_session.timestamp())*1000
             ffmpeg_all_preparation = (
                 FFmpeg()
                 .option("y")
-                .input(f"temp/{user}",
+                .input(f"temp/{user}.pcm",
                     f="s16le",
                     ar="48000",
                     ac = "2")
-                .output(f"temp/{user}",
-                        {
-                        "filter_complex":f"adelay={compensate}|{compensate}"
-                        })
+                .output(f"temp/{user}-compensate.pcm",
+                    f="s16le",
+                    ar="48000",
+                    ac = "2",
+                    filter_complex=f"adelay={compensate}|{compensate}")
                     )
             try:
-                await ffmpeg.execute()
-                await ffmpeg_all_preparation.execute()
-            except:
+                ffmpeg.execute()
+                ffmpeg_all_preparation.execute()
+            except Exception as e:
+                print(e)
                 print(f"There is an error while processing {data[3]}")
                 continue
-            print(f"done {user}")
+            print(f"Sucessfully process {data[3]}")
+            filename = f"{user}-{_id}.mp3"
+            print(f"uploading {data[3]}")
+            client.upload_file("temp/"+filename, "csbot", filename)
+            self.result[user] = [f"https://pub-cbd1e74ceb804677bfc1ed1e43a2600f.r2.dev/{filename}",data[3]]
+            print(f"done uploading {data[3]}")
 
+        ffmpeg_all = (
+                FFmpeg()
+                .option("y")
+                .output(f"temp/all-{_id}.mp3",
+                    filter_complex=f"amix=inputs={len(self.temp)}:duration=longest:normalize=1")
+                    )
+        
         for user,data in self.temp.items():
-            pass
-
-            # thread = threading.Thread(target=self.process, args=(_id,user,data,))
-            # thread.start()
-            # workers.append(thread)
-        return
-        thread = threading.Thread(target=self.process_all, args=(_id,))
-        thread.start()
-        workers.append(thread)
-        for worker in workers:
-            worker.join()
+            ffmpeg_all.input(f"temp/{user}-compensate.pcm",
+                    f="s16le",
+                    ar="48000",
+                    ac = "2")
+        try:
+            ffmpeg_all.execute()
+        except Exception as e:
+            print(e)
+            print(f"There is an error while processing all")
+            return
+        print(f"Sucessfully process all")
+        filename = f"all-{_id}.mp3"
+        print(f"uploading {data[3]}")
+        client.upload_file("temp/"+filename, "csbot", filename)
+        self.result["all"] = [f"https://pub-cbd1e74ceb804677bfc1ed1e43a2600f.r2.dev/{filename}","all"]
+        print(f"done uploading {data[3]}")
 
         for user,data in self.temp.items():
             data[0].close()
             print(f"close temp file for {data[3]}")
+
         self.temp.clear()
         print("done")
 
@@ -176,8 +206,7 @@ class record(commands.Cog):
         embed.add_field(name="Not Paticipate",value=f"`{p_m}`")
         await channel.send(embed=embed)
         await channel.send("------------------------------------")
-        gc.collect()
-
+        self.clearnup()
                 
     async def start(self):
         while self.run:
@@ -192,11 +221,12 @@ class record(commands.Cog):
                     num_silence_frames = int(self.sample_rate   * 0.2)
                     silence_data = (b'\x00\x00' * self.channel)* num_silence_frames
                     self.temp[user][0].write(silence_data)
-                    print(f"insert silences for {data[3]} {time.time() - self.start_session.timestamp()}")
+                    print(f"insert silences for {data[3]} {time.time() - self.start_session.timestamp()} with diff {diff}")
         
     @app_commands.command(name="record",description="record")
     async def record(self,interaction:discord.Interaction):
         self.__init__(self.bot)
+        self.clearnup()
         vc = await interaction.user.voice.channel.connect(cls=voice_recv.VoiceRecvClient)
         vc.listen(voice_recv.BasicSink(self.callback))
         self.task = self.bot.loop.create_task(self.start())
@@ -213,7 +243,8 @@ class record(commands.Cog):
         self.run = False
         self.task.cancel()
         self.task = None
-        self.bot.loop.create_task(self.save(interaction))
+        await self.save(interaction)
+        
 
     @app_commands.command(name="absent",description="for known absent result in not showing in not paticipate")
     async def absent(self,interaction:discord.Interaction,member:discord.Member):

@@ -1,19 +1,39 @@
-from pydub import AudioSegment
-from pydub.silence import split_on_silence
+hours = int(input('Enter number of hours: '))
+minutes = int(input('Enter number of minutes: '))
+buyAmt = int(input('Enter shopping amount: '))
+total_minute = hours *60 + minutes
+if hours > 20 or hours < 0:
+    print("Invalid time.")
+elif minutes > 59 or minutes < 0:
+    print("Invalid time.")
+elif total_minute > 1200:
+    print("Invalid time.")
+else:
+    free = 2
+    if buyAmt >= 300 and buyAmt <=3000:
+        free =4
+    cost = 0
+    counter = 1
+    while total_minute >  0:
+        if buyAmt > 3000:
+            break
+        if counter <= free:
+            total_minute = total_minute - 60
+            counter += 1
+            continue
+        elif counter >= 5:
+            cost += 50
+        else:
+            cost += 20
+        total_minute = total_minute - 60
+        counter += 1
 
-DURATION = 48000*5
+    if cost:
+        print(f"Total amount due is {cost} Baht, thank you.")
+    else:
+        print("No charge, thank you.")
 
-audio:AudioSegment = AudioSegment.from_raw(file="temp/483104273761304577",
-            sample_width=2,  # 16-bit audio
-            frame_rate=48000,  
-            channels=2  # Stereo
-            )
 
-o:AudioSegment = AudioSegment.from_raw(file="temp/847770564525162546",
-            sample_width=2,  # 16-bit audio
-            frame_rate=48000,  
-            channels=2  # Stereo
-            )
 
-overlay = audio.overlay(o)
-overlay.export("new.mp3")
+
+
