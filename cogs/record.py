@@ -7,14 +7,11 @@ from pydub import AudioSegment
 import asyncio
 import numpy as np
 import time
-import tempfile
 import gc 
 from setup import client ,resource
 import io
 from datetime import datetime
-import threading
 import os 
-import subprocess
 from ffmpeg import FFmpeg
 
 class record(commands.Cog):
@@ -56,61 +53,63 @@ class record(commands.Cog):
             self.temp[user.id][0].write(data.pcm)
             self.temp[user.id][2] = time.time()
 
-    def process(self,_id,user,data):
-        print(f"saving {user}")
-        data[0].seek(0)
-        audio = AudioSegment(
-            data=bytes(data[0].read()),
-            sample_width=2,  # 16-bit audio
-            frame_rate=self.sample_rate,  
-            channels=self.channel  # Stereo
-            )
-        print(f"spliting {data[3]}")
-        chunks = split_on_silence(audio,keep_silence=2500,min_silence_len=1)
-        performanced = AudioSegment.empty()
-        if chunks:
-            for chunk in chunks:
-                performanced += chunk
-        else:
-            performanced = audio
-        print(f"done spliting {data[3]}")
-        with io.BytesIO() as f:
-            performanced.export(f, format='mp3',bitrate="64k")
-            filename = f"{user}-{_id}.mp3"
-            print(f"uploading {data[3]}")
-            client.upload_fileobj(f, "csbot", filename)
-            self.result[user] = [f"https://pub-cbd1e74ceb804677bfc1ed1e43a2600f.r2.dev/{filename}",data[3]]
-            print(f"done uploading {data[3]}")
+    # def process(self,_id,user,data):
+    #     print(f"saving {user}")
+    #     data[0].seek(0)
+    #     audio = AudioSegment(
+    #         data=bytes(data[0].read()),
+    #         sample_width=2,  # 16-bit audio
+    #         frame_rate=self.sample_rate,  
+    #         channels=self.channel  # Stereo
+    #         )
+    #     print(f"spliting {data[3]}")
+    #     chunks = split_on_silence(audio,keep_silence=2500,min_silence_len=1)
+    #     performanced = AudioSegment.empty()
+    #     if chunks:
+    #         for chunk in chunks:
+    #             performanced += chunk
+    #     else:
+    #         performanced = audio
+    #     print(f"done spliting {data[3]}")
+    #     with io.BytesIO() as f:
+    #         performanced.export(f, format='mp3',bitrate="64k")
+    #         filename = f"{user}-{_id}.mp3"
+    #         print(f"uploading {data[3]}")
+    #         client.upload_fileobj(f, "csbot", filename)
+    #         self.result[user] = [f"https://pub-cbd1e74ceb804677bfc1ed1e43a2600f.r2.dev/{filename}",data[3]]
+    #         print(f"done uploading {data[3]}")
 
-    def process_all(self,_id):
-        merge = None
-        print(f"saving all")
-        for user,data in self.temp.items():
-            print(f"merging all {data[3]}")
-            data[0].seek(0)
-            audio = AudioSegment(
-                data=bytes(data[0].read()),
-                sample_width=2,  # 16-bit audio
-                frame_rate=self.sample_rate,  
-                channels=self.channel  # Stereo
-                )
-            processed = AudioSegment.silent(duration=((data[1]-self.start_session.timestamp()-1)*1000),frame_rate=self.sample_rate)+audio # -1 for compensate delay
-            if merge:
-                merge = merge.overlay(processed)
-            else:
-                merge = processed
+    # def process_all(self,_id):
+    #     merge = None
+    #     print(f"saving all")
+    #     for user,data in self.temp.items():
+    #         print(f"merging all {data[3]}")
+    #         data[0].seek(0)
+    #         audio = AudioSegment(
+    #             data=bytes(data[0].read()),
+    #             sample_width=2,  # 16-bit audio
+    #             frame_rate=self.sample_rate,  
+    #             channels=self.channel  # Stereo
+    #             )
+    #         processed = AudioSegment.silent(duration=((data[1]-self.start_session.timestamp()-1)*1000),frame_rate=self.sample_rate)+audio # -1 for compensate delay
+    #         if merge:
+    #             merge = merge.overlay(processed)
+    #         else:
+    #             merge = processed
 
-        with io.BytesIO() as f:
-            merge.export(f, format='mp3',bitrate="64k")
-            filename = f"all-{_id}.mp3"
-            print(f"uploading all")
-            client.upload_fileobj(f, "csbot", filename)
-            self.result['000'] = [f"https://pub-cbd1e74ceb804677bfc1ed1e43a2600f.r2.dev/{filename}","all"]
+    #     with io.BytesIO() as f:
+    #         merge.export(f, format='mp3',bitrate="64k")
+    #         filename = f"all-{_id}.mp3"
+    #         print(f"uploading all")
+    #         client.upload_fileobj(f, "csbot", filename)
+    #         self.result['000'] = [f"https://pub-cbd1e74ceb804677bfc1ed1e43a2600f.r2.dev/{filename}","all"]
 
 
     async def save(self,interaction:discord.Interaction):
         _id = self.start_session.strftime("%d%m%Y%H%M%S")
+        # export for each user
         for user,data in self.temp.items():
+            # export for each user with no compensation silence
             ffmpeg = (
                 FFmpeg()
                 .option("y")
@@ -123,8 +122,10 @@ class record(commands.Cog):
                         "filter_complex":"silenceremove=stop_threshold=-50dB:stop_duration=2:stop_periods=-1"
                         })
                     )
-            
+
             compensate = (data[1] - self.start_session.timestamp())*1000
+
+            # export for each user with compensation silence prepare for process all
             ffmpeg_all_preparation = (
                 FFmpeg()
                 .option("y")
@@ -149,16 +150,17 @@ class record(commands.Cog):
             filename = f"{user}-{_id}.mp3"
             print(f"uploading {data[3]}")
             client.upload_file("temp/"+filename, "csbot", filename)
-            self.result[user] = [f"https://pub-cbd1e74ceb804677bfc1ed1e43a2600f.r2.dev/{filename}",data[3]]
+            self.result[user] = [f"{os.getenv('AWS_DEV_DOMAIN')}/{filename}",data[3]]
             print(f"done uploading {data[3]}")
 
+        #mix each user audio
         ffmpeg_all = (
                 FFmpeg()
                 .option("y")
                 .output(f"temp/all-{_id}.mp3",
                     filter_complex=f"amix=inputs={len(self.temp)}:duration=longest:normalize=1")
                     )
-        
+        #insert each user audio
         for user,data in self.temp.items():
             ffmpeg_all.input(f"temp/{user}-compensate.pcm",
                     f="s16le",
@@ -174,7 +176,7 @@ class record(commands.Cog):
         filename = f"all-{_id}.mp3"
         print(f"uploading {data[3]}")
         client.upload_file("temp/"+filename, "csbot", filename)
-        self.result["all"] = [f"https://pub-cbd1e74ceb804677bfc1ed1e43a2600f.r2.dev/{filename}","all"]
+        self.result["all"] = [f"{os.getenv('AWS_DEV_DOMAIN')}/{filename}","all"]
         print(f"done uploading {data[3]}")
 
         for user,data in self.temp.items():
@@ -260,7 +262,7 @@ class record(commands.Cog):
             self.pause = False
         else:
             self.pause = True
-        await interaction.response.send_message(f"Conference are now {'recording' if not self.pause else 'pause'}")
+        await interaction.response.send_message(f"Conference are now {'recording' if not self.pause else 'pause'}",ephemeral=True)
     
     @commands.Cog.listener()
     async def on_voice_state_update(self, member:discord.Member, before, after): 

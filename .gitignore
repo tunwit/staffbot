@@ -7,6 +7,6 @@ test.py
 signature/
 database/
 database/data.json
-venv/
+env/
 test/
 temp/
