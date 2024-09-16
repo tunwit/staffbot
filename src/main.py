@@ -3,11 +3,7 @@ import discord
 import os
 from dotenv import load_dotenv
 import discord
-import platform
 
-if platform.system() == "Linux":
-    opus_path = '/usr/lib/libopus.so.***' 
-    discord.opus.load_opus(opus_path)
 intents = discord.Intents.all()
 # uselavalink is set to True bot will try to connect to lavalink server
 # if local is enabled bot will try to connect to local lavalink server
