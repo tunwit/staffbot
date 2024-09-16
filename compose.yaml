@@ -1,0 +1,13 @@
+services:
+  cs_staff:
+    image: cs_staff
+    restart: unless-stopped
+    environment:
+      DISCORD_TOKEN: ${DISCORD_TOKEN}
+      AWS_TOKEN_VALUE: ${AWS_TOKEN_VALUE}
+      AWS_ACCESS_KEY: ${AWS_ACCESS_KEY}
+      AWS_SECRET_ACCESS_KEY: ${AWS_SECRET_ACCESS_KEY}
+      AWS_DEV_DOMAIN: ${AWS_DEV_DOMAIN}'
+      PYTHONUNBUFFERED: 1
+  
+  
