@@ -3,6 +3,11 @@ import discord
 import os
 from dotenv import load_dotenv
 import discord
+import platform
+from opussetter import opusloader
+
+if platform.system() == "Linux":
+    opusloader()
 
 intents = discord.Intents.all()
 # uselavalink is set to True bot will try to connect to lavalink server
