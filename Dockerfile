@@ -4,7 +4,7 @@ COPY requirements.txt .
 RUN pip install -r requirements.txt
 RUN pip install "discord.py[voice]"
 RUN apk add --no-cache ffmpeg
-RUN apk add --no-cache opus-dev
+RUN apk add --no-cache opus
 COPY src/ .
 CMD ["python","-u","./main.py"]
 

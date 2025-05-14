@@ -229,7 +229,9 @@ class record(commands.Cog):
     async def record(self,interaction:discord.Interaction):
         self.__init__(self.bot)
         self.clearnup()
+        print(discord.opus.is_loaded())
         vc = await interaction.user.voice.channel.connect(cls=voice_recv.VoiceRecvClient)
+        print(discord.opus.is_loaded())
         vc.listen(voice_recv.BasicSink(self.callback))
         self.task = self.bot.loop.create_task(self.start())
         for member in interaction.user.voice.channel.members:

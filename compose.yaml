@@ -1,6 +1,8 @@
 services:
   cs_staff:
-    image: cs_staff
+    build:
+      context: .
+      dockerfile: Dockerfile
     restart: unless-stopped
     environment:
       DISCORD_TOKEN: ${DISCORD_TOKEN}
@@ -9,5 +11,3 @@ services:
       AWS_SECRET_ACCESS_KEY: ${AWS_SECRET_ACCESS_KEY}
       AWS_DEV_DOMAIN: ${AWS_DEV_DOMAIN}'
       PYTHONUNBUFFERED: 1
-  
-  
